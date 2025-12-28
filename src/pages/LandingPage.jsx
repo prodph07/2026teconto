@@ -179,7 +179,7 @@ export default function LandingPage() {
           </h1>
           
           <p className="text-lg md:text-2xl text-gray-300 max-w-2xl mx-auto font-light leading-relaxed pt-4">
-            Grave o momento da virada. Fotos e áudio guardados em uma cápsula do tempo digital.<br className="hidden md:block" />
+            Mande uma mensagem para alguem querido, que só sera revelada na virada do ano!.<br className="hidden md:block" />
             Seu link ficará <strong className="text-white border-b-2 border-yellow-500/50 pb-0.5">bloqueado</strong> até o próximo ano.
           </p>
 
