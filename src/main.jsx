@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
-import './index.css' // <--- ESSA LINHA É A RESPONSAVEL PELO ESTILO
+import './index.css' // <--- ESSA LINHA É A VIDA DO SEU SITE. ELA TEM QUE EXISTIR.
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

@@ -2,8 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Se quiser garantir que o fundo fique preto mesmo se o tailwind falhar */
+/* Regras de emergência para garantir fundo preto se tudo falhar */
 body {
-  background-color: #000;
+  background-color: #020205;
   color: white;
+  margin: 0;
+  font-family: 'Outfit', sans-serif;
 }

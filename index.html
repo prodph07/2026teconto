@@ -1,17 +1,38 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>capsula-tempo</title>
-    <meta property="og:title" content="Alguém deixou uma mensagem do passado para você 🔒" />
-    <meta property="og:description" content="Uma cápsula do tempo foi criada. Clique para ver quando ela será desbloqueada." />
-    <meta property="og:image" content="https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1200&auto=format&fit=crop" />
-    <meta property="og:url" content="https://suacapsula.com" />
-    <meta name="theme-color" content="#9333ea" />
+    <title>Sua Cápsula do Tempo</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Outfit', 'sans-serif'],
+            },
+            animation: {
+              shine: 'shine 5s linear infinite',
+              pulse: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            },
+            keyframes: {
+              shine: {
+                'to': { backgroundPosition: '200% center' },
+              }
+            }
+          }
+        }
+      }
+    </script>
   </head>
-  <body>
+  <body class="bg-[#020205] text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
