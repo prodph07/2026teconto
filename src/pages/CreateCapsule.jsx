@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../supabase'; 
-import { useNavigate, useSearchParams } from 'react-router-dom'; // <--- Importante
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import imageCompression from 'browser-image-compression';
 import { Mic, Square, Loader2, Send, Trash2, Plus, Lock } from 'lucide-react';
 
@@ -8,22 +8,36 @@ export default function CreateCapsule() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
-  // --- SEGURANÇA ANTIFRAUDE ---
-  // Defina uma senha difícil aqui. Ninguém vai ver isso, só o código.
-  const TOKEN_SECRETO = "VIRADA2026_VIP"; 
+  // --- MODO DETETIVE ATIVADO 🕵️‍♂️ ---
+  // Tenta pegar o código de várias formas possíveis
+  const tokenUrl = searchParams.get('token') || 
+                   searchParams.get('id') || 
+                   searchParams.get('transaction_id') || 
+                   searchParams.get('transaction') ||
+                   searchParams.get('codigo');
 
   useEffect(() => {
-    const tokenUrl = searchParams.get('token');
+    // 1. LISTAR TUDO QUE A KIRVANO MANDOU
+    const paramsRecebidos = {};
+    searchParams.forEach((value, key) => {
+      paramsRecebidos[key] = value;
+    });
+
+    // Se tiver chegado qualquer coisa, mostra um alerta para você descobrir o nome
+    if (Object.keys(paramsRecebidos).length > 0) {
+      alert("🔍 DETETIVE: A Kirvano mandou isso: " + JSON.stringify(paramsRecebidos));
+    }
     
-    // Se o token na URL não for igual ao token secreto...
-    if (tokenUrl !== TOKEN_SECRETO) {
-      // ...chuta o usuário de volta para a Home
-      alert("Acesso negado! Você precisa garantir sua vaga primeiro.");
-      navigate('/');
+    // 2. BLOQUEIO DE SEGURANÇA
+    // (Desativei temporariamente o redirecionamento para você conseguir ver o alerta acima)
+    if (!tokenUrl) {
+      console.log("Nenhum token encontrado (Modo Detetive ativo)");
+      // Quando descobrir o nome certo, descomente as linhas abaixo:
+      // alert("Acesso inválido! Você precisa comprar sua cápsula primeiro.");
+      // navigate('/');
     }
   }, []);
-
-  // ---------------------------------------------------------
+  // ---------------------------------------------------
 
   const [photos, setPhotos] = useState([]);
   const [audioBlob, setAudioBlob] = useState(null);
@@ -34,26 +48,23 @@ export default function CreateCapsule() {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
-  // --- LÓGICA DE ÁUDIO ---
+  // --- ÁUDIO ---
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorderRef.current = new MediaRecorder(stream);
       audioChunksRef.current = [];
-
       mediaRecorderRef.current.ondataavailable = (event) => {
         if (event.data.size > 0) audioChunksRef.current.push(event.data);
       };
-
       mediaRecorderRef.current.onstop = () => {
         const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         setAudioBlob(blob);
       };
-
       mediaRecorderRef.current.start();
       setIsRecording(true);
     } catch (err) {
-      alert("Precisamos de permissão do microfone! Verifique se seu navegador permite.");
+      alert("Precisamos de permissão do microfone!");
     }
   };
 
@@ -65,12 +76,10 @@ export default function CreateCapsule() {
     }
   };
 
+  // --- FOTOS ---
   const handlePhotoSelect = async (e) => {
     const files = Array.from(e.target.files);
-    if (files.length + photos.length > 3) {
-      alert("Máximo de 3 fotos!");
-      return;
-    }
+    if (files.length + photos.length > 3) return alert("Máximo de 3 fotos!");
     setPhotos([...photos, ...files]);
   };
 
@@ -78,11 +87,13 @@ export default function CreateCapsule() {
     setPhotos(photos.filter((_, i) => i !== index));
   };
 
+  // --- ENVIO ---
   const handleSubmit = async () => {
     if (!audioBlob && photos.length === 0) return alert("Adicione pelo menos uma foto ou áudio!");
     setLoading(true);
 
     try {
+      // 1. Uploads
       const photoUrls = [];
       let audioUrl = null;
 
@@ -105,58 +116,68 @@ export default function CreateCapsule() {
 
       const unlockDate = new Date('2026-01-01T00:00:00'); 
       
+      // 2. SALVAR NO BANCO
+      // Se não achou token nenhum no modo detetive, usa um "sem_token" pra não quebrar o teste
+      const finalToken = tokenUrl || `teste_sem_token_${Date.now()}`;
+
       const { data, error } = await supabase
         .from('capsules')
         .insert([{ 
             message: message,
             audio_url: audioUrl,
             photo_urls: photoUrls,
-            unlock_at: unlockDate
+            unlock_at: unlockDate,
+            order_id: finalToken 
         }])
         .select();
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === '23505') {
+            throw new Error("Este link já foi utilizado para criar uma cápsula!");
+        }
+        throw error;
+      }
 
       window.location.href = `/v/${data[0].id}`;
       
     } catch (error) {
       console.error(error);
-      alert("Erro: " + error.message);
+      alert(error.message || "Erro ao criar cápsula.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Se não tiver token, nem renderiza o resto da página para não piscar
-  // O useEffect vai redirecionar, mas isso garante visualmente
-  const tokenUrl = searchParams.get('token');
-  if (tokenUrl !== TOKEN_SECRETO) return null;
-
   return (
-    <div className="min-h-screen bg-zinc-950 text-white selection:bg-purple-500 selection:text-white pb-20">
+    <div className="min-h-screen bg-zinc-950 text-white pb-20 font-sans selection:bg-purple-500">
       <div className="w-full h-1 bg-zinc-900 sticky top-0 z-50">
         <div className="w-1/3 h-full bg-gradient-to-r from-purple-500 to-pink-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]"></div>
       </div>
 
       <div className="max-w-md mx-auto px-6 py-10 flex flex-col gap-8">
+        
+        {/* AVISO DO MODO DETETIVE (Só aparece se não tiver token) */}
+        {!tokenUrl && (
+            <div className="bg-yellow-900/50 text-yellow-200 p-4 rounded-xl border border-yellow-700 text-sm text-center">
+                🕵️‍♂️ <strong>Modo Detetive Ativo:</strong><br/>
+                Compre na Kirvano para ver o Alerta com o nome do parâmetro.
+            </div>
+        )}
+
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center p-3 bg-zinc-900 rounded-2xl mb-4 border border-zinc-800 shadow-xl">
             <Lock className="w-6 h-6 text-purple-400" />
           </div>
-          <h1 className="text-4xl font-black tracking-tight bg-gradient-to-br from-white via-zinc-200 to-zinc-600 bg-clip-text text-transparent">
-            Criar Cápsula
-          </h1>
-          <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest">
-            Destino: 2026
-          </p>
+          <h1 className="text-4xl font-black tracking-tight text-white">Criar Cápsula</h1>
+          <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest">Destino: 2026</p>
         </div>
 
+        {/* CARD FOTOS */}
         <div className="bg-zinc-900/50 backdrop-blur-md p-6 rounded-3xl border border-zinc-800/50 shadow-2xl">
           <div className="flex items-center justify-between mb-4">
             <label className="text-sm font-bold text-zinc-300">Suas Memórias</label>
             <span className="text-xs font-mono text-zinc-600 bg-zinc-900 px-2 py-1 rounded-md border border-zinc-800">{photos.length}/3</span>
           </div>
-          
           <div className="grid grid-cols-3 gap-3">
             {photos.map((p, i) => (
               <div key={i} className="aspect-square relative group">
@@ -173,6 +194,7 @@ export default function CreateCapsule() {
           </div>
         </div>
 
+        {/* CARD AUDIO */}
         <div className="bg-zinc-900/50 backdrop-blur-md p-6 rounded-3xl border border-zinc-800/50 shadow-2xl flex flex-col items-center">
           <label className="text-sm font-bold text-zinc-300 w-full mb-6">Mensagem de Voz</label>
           <div className="relative">
@@ -192,16 +214,17 @@ export default function CreateCapsule() {
           <p className="mt-6 text-xs text-zinc-500 font-mono">{isRecording ? "GRAVANDO..." : audioBlob ? "" : "Toque para gravar"}</p>
         </div>
 
+        {/* INPUT TEXTO */}
         <div className="relative group">
           <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl opacity-20 group-hover:opacity-40 transition duration-500 blur"></div>
           <textarea className="relative w-full bg-zinc-900 text-white rounded-xl p-5 text-base border border-zinc-800 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 placeholder:text-zinc-600 resize-none transition-all" placeholder="Deixe uma mensagem para o futuro..." rows={4} value={message} onChange={e => setMessage(e.target.value)} />
         </div>
 
-        <button onClick={handleSubmit} disabled={loading} className="w-full py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all transform active:scale-95 disabled:opacity-50 disabled:active:scale-100 bg-white text-black hover:bg-zinc-200 shadow-[0_0_20px_rgba(255,255,255,0.1)]">
+        {/* BOTÃO FINAL */}
+        <button onClick={handleSubmit} disabled={loading} className="w-full py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all transform active:scale-95 disabled:opacity-50 bg-white text-black hover:bg-zinc-200 shadow-[0_0_20px_rgba(255,255,255,0.1)]">
           {loading ? <Loader2 className="animate-spin text-zinc-400" /> : <><span>Lacrar Cápsula</span><Send size={20} /></>}
         </button>
 
-        <p className="text-center text-xs text-zinc-600">Seus dados serão criptografados até 01/01/2026</p>
       </div>
     </div>
   );
