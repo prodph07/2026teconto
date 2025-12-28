@@ -8,36 +8,17 @@ export default function CreateCapsule() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
-  // --- MODO DETETIVE ATIVADO 🕵️‍♂️ ---
-  // Tenta pegar o código de várias formas possíveis
-  const tokenUrl = searchParams.get('token') || 
-                   searchParams.get('id') || 
-                   searchParams.get('transaction_id') || 
-                   searchParams.get('transaction') ||
-                   searchParams.get('codigo');
+  // --- PEGA O CÓDIGO ÚNICO DA KIRVANO ---
+  // Agora sabemos que o nome certo é 'ref'
+  const tokenUrl = searchParams.get('ref') || searchParams.get('token');
 
   useEffect(() => {
-    // 1. LISTAR TUDO QUE A KIRVANO MANDOU
-    const paramsRecebidos = {};
-    searchParams.forEach((value, key) => {
-      paramsRecebidos[key] = value;
-    });
-
-    // Se tiver chegado qualquer coisa, mostra um alerta para você descobrir o nome
-    if (Object.keys(paramsRecebidos).length > 0) {
-      alert("🔍 DETETIVE: A Kirvano mandou isso: " + JSON.stringify(paramsRecebidos));
-    }
-    
-    // 2. BLOQUEIO DE SEGURANÇA
-    // (Desativei temporariamente o redirecionamento para você conseguir ver o alerta acima)
+    // SEGURANÇA: Se não tiver o código 'ref' na URL, chuta para a Home
     if (!tokenUrl) {
-      console.log("Nenhum token encontrado (Modo Detetive ativo)");
-      // Quando descobrir o nome certo, descomente as linhas abaixo:
-      // alert("Acesso inválido! Você precisa comprar sua cápsula primeiro.");
-      // navigate('/');
+      alert("Acesso inválido! Você precisa finalizar a compra primeiro.");
+      navigate('/');
     }
   }, []);
-  // ---------------------------------------------------
 
   const [photos, setPhotos] = useState([]);
   const [audioBlob, setAudioBlob] = useState(null);
@@ -116,10 +97,7 @@ export default function CreateCapsule() {
 
       const unlockDate = new Date('2026-01-01T00:00:00'); 
       
-      // 2. SALVAR NO BANCO
-      // Se não achou token nenhum no modo detetive, usa um "sem_token" pra não quebrar o teste
-      const finalToken = tokenUrl || `teste_sem_token_${Date.now()}`;
-
+      // 2. SALVAR NO BANCO (Com Trava de Segurança)
       const { data, error } = await supabase
         .from('capsules')
         .insert([{ 
@@ -127,17 +105,19 @@ export default function CreateCapsule() {
             audio_url: audioUrl,
             photo_urls: photoUrls,
             unlock_at: unlockDate,
-            order_id: finalToken 
+            order_id: tokenUrl // Salva o código 'ref' aqui
         }])
         .select();
 
       if (error) {
+        // Se o banco reclamar que o order_id já existe (Erro 23505)
         if (error.code === '23505') {
-            throw new Error("Este link já foi utilizado para criar uma cápsula!");
+            throw new Error("⚠️ Atenção: Este link de compra já foi utilizado!");
         }
         throw error;
       }
 
+      // Sucesso! Vai para a visualização
       window.location.href = `/v/${data[0].id}`;
       
     } catch (error) {
@@ -148,6 +128,9 @@ export default function CreateCapsule() {
     }
   };
 
+  // Se não tiver token, nem carrega a tela (evita piscar conteúdo)
+  if (!tokenUrl) return null;
+
   return (
     <div className="min-h-screen bg-zinc-950 text-white pb-20 font-sans selection:bg-purple-500">
       <div className="w-full h-1 bg-zinc-900 sticky top-0 z-50">
@@ -155,15 +138,6 @@ export default function CreateCapsule() {
       </div>
 
       <div className="max-w-md mx-auto px-6 py-10 flex flex-col gap-8">
-        
-        {/* AVISO DO MODO DETETIVE (Só aparece se não tiver token) */}
-        {!tokenUrl && (
-            <div className="bg-yellow-900/50 text-yellow-200 p-4 rounded-xl border border-yellow-700 text-sm text-center">
-                🕵️‍♂️ <strong>Modo Detetive Ativo:</strong><br/>
-                Compre na Kirvano para ver o Alerta com o nome do parâmetro.
-            </div>
-        )}
-
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center p-3 bg-zinc-900 rounded-2xl mb-4 border border-zinc-800 shadow-xl">
             <Lock className="w-6 h-6 text-purple-400" />
