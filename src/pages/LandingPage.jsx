@@ -1,26 +1,31 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Hourglass, Lock, Mic, Rocket, ArrowRight } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom'; // <--- IMPORTANTE
+import { Hourglass, Lock, ArrowRight } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 
 export default function LandingPage() {
   const canvasRef = useRef(null);
   const [searchParams] = useSearchParams(); // Hook para ler a URL
 
-  // LINK BASE DA KIRVANO (Coloque o seu aqui)
+  // LINK BASE DA KIRVANO
   const BASE_CHECKOUT_URL = "https://pay.kirvano.com/4e7a15f5-2c9e-4ce2-9dd1-c926ee2734a3"; 
 
   const handleCompra = () => {
-    // 1. Verifica se tem algum parceiro na URL (ex: ?parceiro=joao)
+    // 1. Verifica se tem algum parceiro na URL (ex: ?parceiro=joao ou ?ref=maria)
     const parceiro = searchParams.get('parceiro') || searchParams.get('ref') || searchParams.get('utm_source');
     
     // 2. Monta o link final
     let finalUrl = BASE_CHECKOUT_URL;
 
     if (parceiro) {
-      // Se a URL da Kirvano já tiver '?', usamos '&', senão usamos '?'
+      // Verifica se o link original já tem '?' para usar o separador correto
       const separator = finalUrl.includes('?') ? '&' : '?';
-      // Adiciona o parametro 'src' (Source) que a Kirvano usa para rastreio
-      finalUrl = `${finalUrl}${separator}src=${parceiro}`;
+      
+      // --- TÉCNICA DA METRALHADORA ---
+      // Envia o código do parceiro para TODOS os parâmetros comuns de rastreio.
+      // src = Source (Padrão)
+      // sck = Source Check (Usado por muitos gateways como Kiwify/Kirvano)
+      // utm_source = Padrão Google/Marketing
+      finalUrl = `${finalUrl}${separator}src=${parceiro}&sck=${parceiro}&utm_source=${parceiro}`;
     }
 
     // 3. Redireciona
