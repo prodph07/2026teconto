@@ -1,21 +1,22 @@
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../supabase'; 
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import imageCompression from 'browser-image-compression';
+import imageCompression from 'browser-image-compression'; // <--- O SEGREDO ESTÁ AQUI
 import { Mic, Square, Loader2, Send, Trash2, Plus, Lock } from 'lucide-react';
 
 export default function CreateCapsule() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
-  // --- PEGA O CÓDIGO ÚNICO DA KIRVANO ---
-  // Agora sabemos que o nome certo é 'ref'
+  // Pega o código único da compra (Kirvano)
   const tokenUrl = searchParams.get('ref') || searchParams.get('token');
 
+  const [linkUsed, setLinkUsed] = useState(false);
+
   useEffect(() => {
-    // SEGURANÇA: Se não tiver o código 'ref' na URL, chuta para a Home
+    // Segurança básica: sem token, volta pra home
     if (!tokenUrl) {
-      alert("Acesso inválido! Você precisa finalizar a compra primeiro.");
+      alert("Você precisa finalizar a compra para acessar essa página.");
       navigate('/');
     }
   }, []);
@@ -68,16 +69,16 @@ export default function CreateCapsule() {
     setPhotos(photos.filter((_, i) => i !== index));
   };
 
-  // --- ENVIO ---
+  // --- ENVIO (COM COMPRESSÃO OTIMIZADA) ---
   const handleSubmit = async () => {
     if (!audioBlob && photos.length === 0) return alert("Adicione pelo menos uma foto ou áudio!");
     setLoading(true);
 
     try {
-      // 1. Uploads
       const photoUrls = [];
       let audioUrl = null;
 
+      // 1. Upload do Áudio
       if (audioBlob) {
         const audioName = `audio_${Date.now()}.webm`;
         const { error: audioError } = await supabase.storage.from('files').upload(audioName, audioBlob);
@@ -86,18 +87,31 @@ export default function CreateCapsule() {
         audioUrl = audioPublic.publicUrl;
       }
 
+      // 2. Upload das Fotos com COMPRESSÃO AGRESSIVA
+      const compressionOptions = {
+        maxSizeMB: 0.2,          // Max 200KB (ideal para economizar banco)
+        maxWidthOrHeight: 1080,  // Max Full HD (ótimo para celular)
+        useWebWorker: true,      // Não trava o navegador
+        initialQuality: 0.7      // Qualidade visual 70% (imperceptível no celular)
+      };
+
       for (let photo of photos) {
-        const compressedFile = await imageCompression(photo, { maxSizeMB: 0.5, maxWidthOrHeight: 1280 });
+        // Comprime a foto antes de enviar
+        const compressedFile = await imageCompression(photo, compressionOptions);
+        
         const fileName = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.jpg`;
+        
+        // Envia o arquivo COMPRIMIDO (compressedFile)
         const { error: photoError } = await supabase.storage.from('files').upload(fileName, compressedFile);
         if (photoError) throw photoError;
+        
         const { data: photoPublic } = supabase.storage.from('files').getPublicUrl(fileName);
         photoUrls.push(photoPublic.publicUrl);
       }
 
       const unlockDate = new Date('2026-01-01T00:00:00'); 
       
-      // 2. SALVAR NO BANCO (Com Trava de Segurança)
+      // 3. Salvar no Banco
       const { data, error } = await supabase
         .from('capsules')
         .insert([{ 
@@ -105,19 +119,19 @@ export default function CreateCapsule() {
             audio_url: audioUrl,
             photo_urls: photoUrls,
             unlock_at: unlockDate,
-            order_id: tokenUrl // Salva o código 'ref' aqui
+            order_id: tokenUrl
         }])
         .select();
 
       if (error) {
-        // Se o banco reclamar que o order_id já existe (Erro 23505)
         if (error.code === '23505') {
-            throw new Error("⚠️ Atenção: Este link de compra já foi utilizado!");
+            setLinkUsed(true);
+            setLoading(false);
+            return;
         }
         throw error;
       }
 
-      // Sucesso! Vai para a visualização
       window.location.href = `/v/${data[0].id}`;
       
     } catch (error) {
@@ -128,7 +142,37 @@ export default function CreateCapsule() {
     }
   };
 
-  // Se não tiver token, nem carrega a tela (evita piscar conteúdo)
+  // TELA DE LINK JÁ UTILIZADO (Upsell)
+  if (linkUsed) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-zinc-900 border border-yellow-600/30 p-8 rounded-3xl text-center shadow-2xl animate-fade-in-up">
+          <div className="w-16 h-16 bg-yellow-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+             <Lock className="text-yellow-500 w-8 h-8" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Convite Já Utilizado</h2>
+          <p className="text-zinc-400 mb-8 leading-relaxed">
+            Você já criou uma cápsula com este pagamento. <br/>
+            Deseja criar outra para presentear alguém?
+          </p>
+          
+          <button 
+            // COLOQUE SEU LINK DA KIRVANO AQUI NO LUGAR DO ALERT
+            onClick={() => window.location.href = 'https://checkout.kirvano.com/SEU_LINK'}
+            className="w-full py-4 bg-white text-black font-bold rounded-xl hover:bg-zinc-200 transition shadow-lg transform hover:scale-105"
+          >
+            Comprar Nova Cápsula 🚀
+          </button>
+          
+          <button onClick={() => navigate('/')} className="mt-6 text-sm text-zinc-500 hover:text-white underline">
+            Voltar para o início
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Se não tiver token, nem renderiza
   if (!tokenUrl) return null;
 
   return (
