@@ -1,12 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Hourglass, Lock, Mic, Rocket, ArrowRight } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom'; // <--- IMPORTANTE
 
 export default function LandingPage() {
   const canvasRef = useRef(null);
-  
-  // LINK DA KIRVANO (Não esqueça de colocar o seu!)
+  const [searchParams] = useSearchParams(); // Hook para ler a URL
+
+  // LINK BASE DA KIRVANO (Coloque o seu aqui)
+  const BASE_CHECKOUT_URL = "https://pay.kirvano.com/4e7a15f5-2c9e-4ce2-9dd1-c926ee2734a3"; 
+
   const handleCompra = () => {
-    window.location.href = "https://pay.kirvano.com/4e7a15f5-2c9e-4ce2-9dd1-c926ee2734a3"; 
+    // 1. Verifica se tem algum parceiro na URL (ex: ?parceiro=joao)
+    const parceiro = searchParams.get('parceiro') || searchParams.get('ref') || searchParams.get('utm_source');
+    
+    // 2. Monta o link final
+    let finalUrl = BASE_CHECKOUT_URL;
+
+    if (parceiro) {
+      // Se a URL da Kirvano já tiver '?', usamos '&', senão usamos '?'
+      const separator = finalUrl.includes('?') ? '&' : '?';
+      // Adiciona o parametro 'src' (Source) que a Kirvano usa para rastreio
+      finalUrl = `${finalUrl}${separator}src=${parceiro}`;
+    }
+
+    // 3. Redireciona
+    window.location.href = finalUrl;
   };
 
   const [timeLeft, setTimeLeft] = useState({ days: '00', hours: '00', minutes: '00', seconds: '00' });
@@ -69,7 +87,7 @@ export default function LandingPage() {
         if (this.opacity > 1) this.opacity = 1;
       }
       draw() {
-        ctx.fillStyle = `rgba(255, 215, 0, ${this.opacity})`; // Mudado para Dourado/Gold
+        ctx.fillStyle = `rgba(255, 215, 0, ${this.opacity})`;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
         ctx.fill();
@@ -106,10 +124,10 @@ export default function LandingPage() {
         }}
       ></div>
 
-      {/* 2. FILTRO ESCURO (Para o texto aparecer bem) */}
+      {/* 2. FILTRO ESCURO */}
       <div className="fixed inset-0 z-[-2] bg-black/80"></div>
 
-      {/* 3. CANVAS (Partículas Douradas por cima) */}
+      {/* 3. CANVAS */}
       <canvas ref={canvasRef} className="fixed top-0 left-0 w-full h-full z-[-1] pointer-events-none" />
 
       {/* Fontes e Estilos Globais */}
@@ -150,7 +168,6 @@ export default function LandingPage() {
         <div className="max-w-5xl mx-auto space-y-6">
           <h1 className="text-5xl md:text-8xl font-[900] tracking-tighter leading-[0.95] text-white drop-shadow-2xl">
             Sua mensagem<br />
-            {/* Gradiente Dourado de Ano Novo */}
             <span className="bg-gradient-to-r from-yellow-300 via-orange-400 to-purple-500 bg-clip-text text-transparent">
               para 2026.
             </span>
@@ -204,7 +221,7 @@ export default function LandingPage() {
               <span>Criar Minha Cápsula</span>
               <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
               
-              {/* Brilho Dourado atrás do botão */}
+              {/* Brilho Dourado */}
               <div className="absolute -inset-3 bg-gradient-to-r from-yellow-500 to-purple-600 rounded-full blur-xl opacity-20 group-hover:opacity-50 transition-opacity -z-10"></div>
             </button>
             <p className="text-xs text-gray-400 mt-4 flex justify-center items-center gap-1.5 opacity-80">
