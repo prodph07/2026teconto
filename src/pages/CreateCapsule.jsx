@@ -1,22 +1,27 @@
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../supabase'; 
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import imageCompression from 'browser-image-compression'; // <--- O SEGREDO ESTÁ AQUI
+import imageCompression from 'browser-image-compression';
 import { Mic, Square, Loader2, Send, Trash2, Plus, Lock } from 'lucide-react';
 
 export default function CreateCapsule() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
-  // Pega o código único da compra (Kirvano)
+  // Pega o token da URL
   const tokenUrl = searchParams.get('ref') || searchParams.get('token');
+
+  // --- CONFIGURAÇÃO DO LINK MÁGICO / FREE ---
+  // Se o link for .../criar?ref=VIP_ACESSO, ele entra sem pagar e parece normal
+  const FREE_PASS_CODE = "VIP_ACESSO"; 
+  const isFreeMode = tokenUrl === FREE_PASS_CODE;
 
   const [linkUsed, setLinkUsed] = useState(false);
 
   useEffect(() => {
-    // Segurança básica: sem token, volta pra home
+    // Se não tiver token nenhum, chuta para a home (bloqueio padrão)
     if (!tokenUrl) {
-      alert("Você precisa finalizar a compra para acessar essa página.");
+      alert("Acesso inválido! Finalize sua compra primeiro.");
       navigate('/');
     }
   }, []);
@@ -69,7 +74,7 @@ export default function CreateCapsule() {
     setPhotos(photos.filter((_, i) => i !== index));
   };
 
-  // --- ENVIO (COM COMPRESSÃO OTIMIZADA) ---
+  // --- ENVIO ---
   const handleSubmit = async () => {
     if (!audioBlob && photos.length === 0) return alert("Adicione pelo menos uma foto ou áudio!");
     setLoading(true);
@@ -78,7 +83,7 @@ export default function CreateCapsule() {
       const photoUrls = [];
       let audioUrl = null;
 
-      // 1. Upload do Áudio
+      // 1. Upload Áudio
       if (audioBlob) {
         const audioName = `audio_${Date.now()}.webm`;
         const { error: audioError } = await supabase.storage.from('files').upload(audioName, audioBlob);
@@ -87,31 +92,32 @@ export default function CreateCapsule() {
         audioUrl = audioPublic.publicUrl;
       }
 
-      // 2. Upload das Fotos com COMPRESSÃO AGRESSIVA
-      const compressionOptions = {
-        maxSizeMB: 0.2,          // Max 200KB (ideal para economizar banco)
-        maxWidthOrHeight: 1080,  // Max Full HD (ótimo para celular)
-        useWebWorker: true,      // Não trava o navegador
-        initialQuality: 0.7      // Qualidade visual 70% (imperceptível no celular)
-      };
+      // 2. Upload Fotos (Com compressão)
+      const compressionOptions = { maxSizeMB: 0.2, maxWidthOrHeight: 1080, useWebWorker: true, initialQuality: 0.7 };
 
       for (let photo of photos) {
-        // Comprime a foto antes de enviar
         const compressedFile = await imageCompression(photo, compressionOptions);
-        
         const fileName = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.jpg`;
-        
-        // Envia o arquivo COMPRIMIDO (compressedFile)
         const { error: photoError } = await supabase.storage.from('files').upload(fileName, compressedFile);
         if (photoError) throw photoError;
-        
         const { data: photoPublic } = supabase.storage.from('files').getPublicUrl(fileName);
         photoUrls.push(photoPublic.publicUrl);
       }
 
+      // --- DEFINIR DATA E ID ---
       const unlockDate = new Date('2026-01-01T00:00:00'); 
+      let finalOrderId;
+
+      if (isFreeMode) {
+        // TRUQUE: Se for o link grátis, gera um ID aleatório único na hora
+        // Assim, milhares de pessoas podem usar o mesmo link "VIP_ACESSO" sem dar erro de duplicidade
+        finalOrderId = `FREE_${Date.now()}_${Math.random().toString(36).substr(2,9)}`;
+      } else {
+        // Se for compra real, usa o ID da transação (para garantir segurança contra duplicidade)
+        finalOrderId = tokenUrl;
+      }
       
-      // 3. Salvar no Banco
+      // 3. Salvar
       const { data, error } = await supabase
         .from('capsules')
         .insert([{ 
@@ -119,7 +125,7 @@ export default function CreateCapsule() {
             audio_url: audioUrl,
             photo_urls: photoUrls,
             unlock_at: unlockDate,
-            order_id: tokenUrl
+            order_id: finalOrderId
         }])
         .select();
 
@@ -142,30 +148,21 @@ export default function CreateCapsule() {
     }
   };
 
-  // TELA DE LINK JÁ UTILIZADO (Upsell)
+  // Se o link já foi usado (apenas para pagantes reais)
   if (linkUsed) {
     return (
       <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-zinc-900 border border-yellow-600/30 p-8 rounded-3xl text-center shadow-2xl animate-fade-in-up">
+        <div className="max-w-md w-full bg-zinc-900 border border-yellow-600/30 p-8 rounded-3xl text-center shadow-2xl">
           <div className="w-16 h-16 bg-yellow-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
              <Lock className="text-yellow-500 w-8 h-8" />
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">Convite Já Utilizado</h2>
-          <p className="text-zinc-400 mb-8 leading-relaxed">
-            Você já criou uma cápsula com este pagamento. <br/>
-            Deseja criar outra para presentear alguém?
-          </p>
-          
+          <p className="text-zinc-400 mb-8">Este link de compra já foi usado para criar uma cápsula.</p>
           <button 
-            // COLOQUE SEU LINK DA KIRVANO AQUI NO LUGAR DO ALERT
-            onClick={() => window.location.href = 'https://checkout.kirvano.com/SEU_LINK'}
-            className="w-full py-4 bg-white text-black font-bold rounded-xl hover:bg-zinc-200 transition shadow-lg transform hover:scale-105"
+            onClick={() => window.location.href = '/'} // Pode por seu link de venda aqui
+            className="w-full py-4 bg-white text-black font-bold rounded-xl hover:bg-zinc-200 transition"
           >
             Comprar Nova Cápsula 🚀
-          </button>
-          
-          <button onClick={() => navigate('/')} className="mt-6 text-sm text-zinc-500 hover:text-white underline">
-            Voltar para o início
           </button>
         </div>
       </div>
@@ -177,11 +174,16 @@ export default function CreateCapsule() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white pb-20 font-sans selection:bg-purple-500">
+      
+      {/* Barra colorida normal (sem piscar, sem avisos) */}
       <div className="w-full h-1 bg-zinc-900 sticky top-0 z-50">
         <div className="w-1/3 h-full bg-gradient-to-r from-purple-500 to-pink-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]"></div>
       </div>
 
       <div className="max-w-md mx-auto px-6 py-10 flex flex-col gap-8">
+        
+        {/* SEM AVISOS DE INFLUENCER/VIP AQUI. TUDO LIMPO. */}
+
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center p-3 bg-zinc-900 rounded-2xl mb-4 border border-zinc-800 shadow-xl">
             <Lock className="w-6 h-6 text-purple-400" />
