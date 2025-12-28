@@ -6,7 +6,7 @@ export default function LandingPage() {
   
   // LINK DA KIRVANO (Não esqueça de colocar o seu!)
   const handleCompra = () => {
-    window.location.href = "https://checkout.kirvano.com/SEU_LINK_DO_PRODUTO"; 
+    window.location.href = "https://pay.kirvano.com/4e7a15f5-2c9e-4ce2-9dd1-c926ee2734a3"; 
   };
 
   const [timeLeft, setTimeLeft] = useState({ days: '00', hours: '00', minutes: '00', seconds: '00' });

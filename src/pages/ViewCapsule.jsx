@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../supabase';
-import { Lock, Unlock, Play, Pause } from 'lucide-react';
+import { Lock, Unlock, Play, Pause, Copy, Check, Share2 } from 'lucide-react'; // Adicionei Copy, Check, Share2
 import confetti from 'canvas-confetti';
 
 export default function ViewCapsule() {
@@ -11,6 +11,10 @@ export default function ViewCapsule() {
   const [timeLeft, setTimeLeft] = useState({});
   const [isLocked, setIsLocked] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
+  
+  // Novos estados para o compartilhamento
+  const [copied, setCopied] = useState(false);
+  const currentUrl = window.location.href;
 
   useEffect(() => {
     fetchCapsule();
@@ -26,7 +30,7 @@ export default function ViewCapsule() {
 
       if (error) throw error;
       
-      console.log("Dados recebidos:", data); // Para ajudar a gente a ver o erro no console se houver
+      console.log("Dados recebidos:", data);
       setCapsule(data);
       checkLockStatus(data.unlock_at);
     } catch (error) {
@@ -41,13 +45,11 @@ export default function ViewCapsule() {
     const unlockDate = new Date(unlockDateString).getTime();
     const now = new Date().getTime();
 
-    // SE A DATA ATUAL FOR MAIOR QUE A DATA DE DESBLOQUEIO
     if (now >= unlockDate) {
       setIsLocked(false);
       triggerConfetti();
     } else {
       setIsLocked(true);
-      // Lógica do contador...
       const timer = setInterval(() => {
         const now = new Date().getTime();
         const distance = unlockDate - now;
@@ -70,35 +72,30 @@ export default function ViewCapsule() {
   }
 
   function triggerConfetti() {
-    // Só solta confete uma vez para não travar o navegador
-    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+    try { confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } }); } catch(e){}
   }
+
+  // Função para copiar o link
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(currentUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Carregando...</div>;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-6 pb-20">
+    <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-6 pb-20 overflow-x-hidden">
       
       {isLocked ? (
         // --- TELA BLOQUEADA ---
-        <div className="text-center space-y-8 animate-pulse">
+        <div className="text-center space-y-8 animate-pulse w-full max-w-md">
           <div className="w-24 h-24 bg-zinc-900 rounded-full flex items-center justify-center mx-auto border-4 border-zinc-800 shadow-[0_0_30px_rgba(168,85,247,0.2)]">
             <Lock size={40} className="text-purple-500" />
           </div>
           
           <h1 className="text-3xl font-bold">Mensagem do Passado</h1>
           <p className="text-zinc-400">Desbloqueia em 01/01/2026</p>
-
-          {/* Botão de Copiar Link (Adicione onde achar melhor) */}
-<button 
-  onClick={() => {
-    navigator.clipboard.writeText(window.location.href);
-    alert("Link copiado! Agora mande no WhatsApp.");
-  }}
-  className="mb-6 px-6 py-2 bg-zinc-800 rounded-full text-xs font-bold text-purple-400 border border-purple-500/30 hover:bg-zinc-700 flex items-center gap-2 mx-auto"
->
-  🔗 Copiar Link da Cápsula
-</button>
 
           <div className="grid grid-cols-4 gap-4 max-w-sm mx-auto">
             {Object.entries(timeLeft).map(([label, value]) => (
@@ -120,14 +117,12 @@ export default function ViewCapsule() {
              <h1 className="text-3xl font-bold">Sua Cápsula do Tempo</h1>
           </div>
 
-          {/* Fotos (Agora com proteção para não quebrar se estiver vazio) */}
           <div className="flex flex-col gap-4">
              {capsule?.photo_urls && Array.isArray(capsule.photo_urls) && capsule.photo_urls.map((url, i) => (
                <img key={i} src={url} className="w-full rounded-2xl border border-zinc-800 shadow-2xl" />
              ))}
           </div>
 
-          {/* Áudio Player */}
           {capsule?.audio_url && (
             <div className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 flex items-center gap-4 shadow-lg">
               <button 
@@ -149,7 +144,6 @@ export default function ViewCapsule() {
             </div>
           )}
 
-          {/* Mensagem de Texto */}
           {capsule?.message && (
             <div className="bg-zinc-900/50 p-6 rounded-2xl border border-zinc-800 italic text-zinc-300 text-center text-lg font-serif">
               "{capsule.message}"
@@ -157,16 +151,54 @@ export default function ViewCapsule() {
           )}
         </div>
       )}
-      {/* --- BOTÃO VIRAL (Adicione isso no final do bloco "DESBLOQUEADO") --- */}
-          <div className="mt-12 pt-8 border-t border-zinc-900 text-center">
-            <p className="text-zinc-500 text-sm mb-4">Gostou da surpresa?</p>
-            <button 
-              onClick={() => window.location.href = '/'}
-              className="px-8 py-3 bg-zinc-900 border border-zinc-800 rounded-full text-white font-bold text-sm hover:bg-zinc-800 transition shadow-[0_0_15px_rgba(168,85,247,0.15)]"
-            >
-              Criar minha Cápsula também 🚀
-            </button>
-          </div>
+
+      {/* --- ÁREA DE COMPARTILHAMENTO (NOVA - SEM QUEBRAR) --- */}
+      <div className="mt-12 w-full max-w-md bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 backdrop-blur-sm">
+        <div className="flex flex-col items-center gap-6">
+            
+            <div className="flex items-center gap-2 text-purple-400">
+                <Share2 size={18} />
+                <span className="font-bold text-sm tracking-wide uppercase">Compartilhar Cápsula</span>
+            </div>
+
+            {/* QR CODE GERADO COMO IMAGEM (NÃO TRAVA) */}
+            <div className="bg-white p-4 rounded-xl shadow-lg">
+                <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(currentUrl)}`}
+                    alt="QR Code"
+                    className="w-32 h-32"
+                />
+            </div>
+
+            {/* Link Copiável */}
+            <div className="w-full">
+                <p className="text-xs text-zinc-500 mb-2 text-center">Copie o link para enviar</p>
+                <div className="flex items-center gap-2 bg-black/50 border border-zinc-700 p-2 rounded-xl">
+                    <div className="flex-1 overflow-hidden">
+                        <p className="text-xs text-zinc-300 truncate px-2 font-mono">
+                            {currentUrl}
+                        </p>
+                    </div>
+                    <button 
+                        onClick={copyToClipboard}
+                        className={`p-2 rounded-lg transition-all ${copied ? 'bg-green-500 text-black' : 'bg-zinc-800 text-white hover:bg-zinc-700'}`}
+                    >
+                        {copied ? <Check size={18} /> : <Copy size={18} />}
+                    </button>
+                </div>
+            </div>
+
+            <div className="pt-4 border-t border-zinc-800 w-full text-center">
+                <button 
+                onClick={() => window.location.href = '/'}
+                className="text-sm text-zinc-400 hover:text-white underline decoration-zinc-700 hover:decoration-white transition"
+                >
+                Criar minha própria cápsula 🚀
+                </button>
+            </div>
+        </div>
+      </div>
+
     </div>
   );
 }
