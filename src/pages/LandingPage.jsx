@@ -154,7 +154,7 @@ export default function LandingPage() {
         <div className="flex items-center gap-2">
           <Hourglass className="text-yellow-400 w-6 h-6 animate-pulse" />
           <span className="font-bold text-xl tracking-[0.2em] text-white">
-            TIME<span className="text-purple-400">CAPSULE</span>
+            2026<span className="text-purple-400">TECONTO</span>
           </span>
         </div>
         
