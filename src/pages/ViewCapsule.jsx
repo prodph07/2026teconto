@@ -89,6 +89,17 @@ export default function ViewCapsule() {
           <h1 className="text-3xl font-bold">Mensagem do Passado</h1>
           <p className="text-zinc-400">Desbloqueia em 01/01/2026</p>
 
+          {/* Botão de Copiar Link (Adicione onde achar melhor) */}
+<button 
+  onClick={() => {
+    navigator.clipboard.writeText(window.location.href);
+    alert("Link copiado! Agora mande no WhatsApp.");
+  }}
+  className="mb-6 px-6 py-2 bg-zinc-800 rounded-full text-xs font-bold text-purple-400 border border-purple-500/30 hover:bg-zinc-700 flex items-center gap-2 mx-auto"
+>
+  🔗 Copiar Link da Cápsula
+</button>
+
           <div className="grid grid-cols-4 gap-4 max-w-sm mx-auto">
             {Object.entries(timeLeft).map(([label, value]) => (
               <div key={label} className="bg-zinc-900 p-4 rounded-xl border border-zinc-800">

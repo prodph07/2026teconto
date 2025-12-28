@@ -13,7 +13,7 @@ export default function CreateCapsule() {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
-  // --- LÓGICA (Mantida igual, só o visual muda) ---
+  // --- LÓGICA DE ÁUDIO ---
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -44,6 +44,7 @@ export default function CreateCapsule() {
     }
   };
 
+  // --- LÓGICA DE FOTOS ---
   const handlePhotoSelect = async (e) => {
     const files = Array.from(e.target.files);
     if (files.length + photos.length > 3) {
@@ -57,6 +58,7 @@ export default function CreateCapsule() {
     setPhotos(photos.filter((_, i) => i !== index));
   };
 
+  // --- ENVIO (COM REDIRECIONAMENTO) ---
   const handleSubmit = async () => {
     if (!audioBlob && photos.length === 0) return alert("Adicione pelo menos uma foto ou áudio!");
     setLoading(true);
@@ -65,6 +67,7 @@ export default function CreateCapsule() {
       const photoUrls = [];
       let audioUrl = null;
 
+      // 1. Upload do Áudio
       if (audioBlob) {
         const audioName = `audio_${Date.now()}.webm`;
         const { error: audioError } = await supabase.storage.from('files').upload(audioName, audioBlob);
@@ -73,6 +76,7 @@ export default function CreateCapsule() {
         audioUrl = audioPublic.publicUrl;
       }
 
+      // 2. Upload das Fotos
       for (let photo of photos) {
         const compressedFile = await imageCompression(photo, { maxSizeMB: 0.5, maxWidthOrHeight: 1280 });
         const fileName = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.jpg`;
@@ -84,6 +88,7 @@ export default function CreateCapsule() {
 
       const unlockDate = new Date('2026-01-01T00:00:00'); 
       
+      // 3. Salvar no Banco
       const { data, error } = await supabase
         .from('capsules')
         .insert([{ 
@@ -96,7 +101,8 @@ export default function CreateCapsule() {
 
       if (error) throw error;
 
-      alert("✨ Cápsula criada com sucesso! ID: " + data[0].id);
+      // --- MUDANÇA AQUI: REDIRECIONA PARA A PÁGINA FINAL ---
+      window.location.href = `/v/${data[0].id}`;
       
     } catch (error) {
       console.error(error);
@@ -106,7 +112,7 @@ export default function CreateCapsule() {
     }
   };
 
-  // --- NOVO VISUAL ---
+  // --- VISUAL ---
   return (
     <div className="min-h-screen bg-zinc-950 text-white selection:bg-purple-500 selection:text-white pb-20">
       
@@ -164,7 +170,6 @@ export default function CreateCapsule() {
           <label className="text-sm font-bold text-zinc-300 w-full mb-6">Mensagem de Voz</label>
           
           <div className="relative">
-            {/* Efeito de "onda" atrás do botão quando grava */}
             {isRecording && (
                <div className="absolute inset-0 bg-red-500 rounded-full animate-ping opacity-20"></div>
             )}

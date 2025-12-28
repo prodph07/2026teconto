@@ -7,6 +7,8 @@ export default function LandingPage() {
   // AQUI VOCÊ VAI COLOCAR O LINK DO SEU CHECKOUT DA KIRVANO
   // Por enquanto, deixei redirecionando direto para criar apenas para testes
   const handleCompra = () => {
+     // Substitua pelo seu link REAL da Kirvano
+     window.location.href = "https://pay.kirvano.com/4e7a15f5-2c9e-4ce2-9dd1-c926ee2734a3";
      // Quando tiver o link da Kirvano, você usará: window.location.href = "SEU_LINK_KIRVANO";
      navigate('/criar'); 
   };
