@@ -1,35 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Hourglass, Lock, ArrowRight } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom'; // <--- IMPORTANTE: useNavigate
 
 export default function LandingPage() {
   const canvasRef = useRef(null);
-  const [searchParams] = useSearchParams(); // Hook para ler a URL
-
-  // LINK BASE DA KIRVANO
-  const BASE_CHECKOUT_URL = "https://pay.kirvano.com/4e7a15f5-2c9e-4ce2-9dd1-c926ee2734a3"; 
+  const navigate = useNavigate(); // Hook para navegar entre páginas internas
+  const [searchParams] = useSearchParams();
 
   const handleCompra = () => {
-    // 1. Verifica se tem algum parceiro na URL (ex: ?parceiro=joao ou ?ref=maria)
+    // 1. Pega o identificador do influencer na URL atual (se tiver)
     const parceiro = searchParams.get('parceiro') || searchParams.get('ref') || searchParams.get('utm_source');
     
-    // 2. Monta o link final
-    let finalUrl = BASE_CHECKOUT_URL;
-
+    // 2. MANDA PARA A PÁGINA DE CRIAR (Funil Invertido)
+    // Se tiver parceiro, a gente repassa ele na URL para a próxima página não perder o rastro
     if (parceiro) {
-      // Verifica se o link original já tem '?' para usar o separador correto
-      const separator = finalUrl.includes('?') ? '&' : '?';
-      
-      // --- TÉCNICA DA METRALHADORA ---
-      // Envia o código do parceiro para TODOS os parâmetros comuns de rastreio.
-      // src = Source (Padrão)
-      // sck = Source Check (Usado por muitos gateways como Kiwify/Kirvano)
-      // utm_source = Padrão Google/Marketing
-      finalUrl = `${finalUrl}${separator}src=${parceiro}&sck=${parceiro}&utm_source=${parceiro}`;
+      navigate(`/criar?parceiro=${parceiro}`);
+    } else {
+      navigate('/criar');
     }
-
-    // 3. Redireciona
-    window.location.href = finalUrl;
   };
 
   const [timeLeft, setTimeLeft] = useState({ days: '00', hours: '00', minutes: '00', seconds: '00' });
@@ -61,7 +49,7 @@ export default function LandingPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // --- LÓGICA DAS PARTÍCULAS (BRILHOS) ---
+  // --- LÓGICA DAS PARTÍCULAS ---
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -121,7 +109,7 @@ export default function LandingPage() {
   return (
     <div className="relative min-h-screen flex flex-col antialiased text-white overflow-x-hidden font-sans selection:bg-pink-500 selection:text-white">
       
-      {/* 1. IMAGEM DE FUNDO (FOGOS DE ARTIFÍCIO) */}
+      {/* 1. IMAGEM DE FUNDO */}
       <div 
         className="fixed inset-0 z-[-3] bg-cover bg-center bg-no-repeat"
         style={{
@@ -179,7 +167,7 @@ export default function LandingPage() {
           </h1>
           
           <p className="text-lg md:text-2xl text-gray-300 max-w-2xl mx-auto font-light leading-relaxed pt-4">
-            Mande uma mensagem para alguem querido, que só sera revelada na virada do ano!.<br className="hidden md:block" />
+            Mande uma mensagem para alguém querido, que só será revelada na virada do ano!<br className="hidden md:block" />
             Seu link ficará <strong className="text-white border-b-2 border-yellow-500/50 pb-0.5">bloqueado</strong> até o próximo ano.
           </p>
 

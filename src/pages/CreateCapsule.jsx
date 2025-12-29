@@ -8,32 +8,24 @@ export default function CreateCapsule() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
-  // Pega o token da URL
-  const tokenUrl = searchParams.get('ref') || searchParams.get('token');
+  // Recupera se tem parceiro (influencer) ou se é um acesso VIP
+  const parceiro = searchParams.get('parceiro') || searchParams.get('utm_source');
+  const refToken = searchParams.get('ref'); // Para o link mágico (VIP)
 
-  // --- CONFIGURAÇÃO DO LINK MÁGICO / FREE ---
-  // Se o link for .../criar?ref=VIP_ACESSO, ele entra sem pagar e parece normal
-  const FREE_PASS_CODE = "VIP_ACESSO"; 
-  const isFreeMode = tokenUrl === FREE_PASS_CODE;
+  const isVipMode = refToken === "VIP_ACESSO"; 
+  const [loading, setLoading] = useState(false);
 
-  const [linkUsed, setLinkUsed] = useState(false);
-
-  useEffect(() => {
-    // Se não tiver token nenhum, chuta para a home (bloqueio padrão)
-    if (!tokenUrl) {
-      alert("Acesso inválido! Finalize sua compra primeiro.");
-      navigate('/');
-    }
-  }, []);
-
+  // Estados do formulário
   const [photos, setPhotos] = useState([]);
   const [audioBlob, setAudioBlob] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+
+  // Link de Checkout da Kirvano
+  const KIRVANO_CHECKOUT = "https://pay.kirvano.com/2522b663-961a-45c0-a634-48eb9bcebec0"; 
 
   // --- ÁUDIO ---
   const startRecording = async () => {
@@ -74,116 +66,93 @@ export default function CreateCapsule() {
     setPhotos(photos.filter((_, i) => i !== index));
   };
 
-  // --- ENVIO ---
-  const handleSubmit = async () => {
+  // --- ENVIO E REDIRECIONAMENTO ---
+  const handleFinish = async () => {
     if (!audioBlob && photos.length === 0) return alert("Adicione pelo menos uma foto ou áudio!");
     setLoading(true);
 
     try {
+      // 1. Uploads (Mesma lógica de antes)
       const photoUrls = [];
       let audioUrl = null;
 
-      // 1. Upload Áudio
       if (audioBlob) {
         const audioName = `audio_${Date.now()}.webm`;
-        const { error: audioError } = await supabase.storage.from('files').upload(audioName, audioBlob);
-        if (audioError) throw audioError;
-        const { data: audioPublic } = supabase.storage.from('files').getPublicUrl(audioName);
-        audioUrl = audioPublic.publicUrl;
+        const { error } = await supabase.storage.from('files').upload(audioName, audioBlob);
+        if (!error) {
+           const { data } = supabase.storage.from('files').getPublicUrl(audioName);
+           audioUrl = data.publicUrl;
+        }
       }
 
-      // 2. Upload Fotos (Com compressão)
       const compressionOptions = { maxSizeMB: 0.2, maxWidthOrHeight: 1080, useWebWorker: true, initialQuality: 0.7 };
-
       for (let photo of photos) {
         const compressedFile = await imageCompression(photo, compressionOptions);
         const fileName = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.jpg`;
-        const { error: photoError } = await supabase.storage.from('files').upload(fileName, compressedFile);
-        if (photoError) throw photoError;
-        const { data: photoPublic } = supabase.storage.from('files').getPublicUrl(fileName);
-        photoUrls.push(photoPublic.publicUrl);
-      }
-
-      // --- DEFINIR DATA E ID ---
-      const unlockDate = new Date('2026-01-01T00:00:00'); 
-      let finalOrderId;
-
-      if (isFreeMode) {
-        // TRUQUE: Se for o link grátis, gera um ID aleatório único na hora
-        // Assim, milhares de pessoas podem usar o mesmo link "VIP_ACESSO" sem dar erro de duplicidade
-        finalOrderId = `FREE_${Date.now()}_${Math.random().toString(36).substr(2,9)}`;
-      } else {
-        // Se for compra real, usa o ID da transação (para garantir segurança contra duplicidade)
-        finalOrderId = tokenUrl;
-      }
-      
-      // 3. Salvar
-      const { data, error } = await supabase
-        .from('capsules')
-        .insert([{ 
-            message: message,
-            audio_url: audioUrl,
-            photo_urls: photoUrls,
-            unlock_at: unlockDate,
-            order_id: finalOrderId
-        }])
-        .select();
-
-      if (error) {
-        if (error.code === '23505') {
-            setLinkUsed(true);
-            setLoading(false);
-            return;
+        const { error } = await supabase.storage.from('files').upload(fileName, compressedFile);
+        if (!error) {
+           const { data } = supabase.storage.from('files').getPublicUrl(fileName);
+           photoUrls.push(data.publicUrl);
         }
-        throw error;
       }
 
-      window.location.href = `/v/${data[0].id}`;
+      const unlockDate = new Date('2026-01-01T00:00:00'); 
+
+      // 2. SE FOR VIP (Cria direto)
+      if (isVipMode) {
+         const vipId = `FREE_${Date.now()}_${Math.random().toString(36).substr(2,5)}`;
+         const { data, error } = await supabase.from('capsules').insert([{ 
+             message, audio_url: audioUrl, photo_urls: photoUrls, unlock_at: unlockDate, order_id: vipId 
+         }]).select();
+         
+         if (error) throw error;
+         window.location.href = `/v/${data[0].id}`;
+         return;
+      }
+
+      // 3. SE FOR PAGAMENTO NORMAL (Salva como PENDENTE)
+      // Geramos um ID temporário para saber que ainda não pagou
+      const tempId = `PENDING_${Date.now()}_${Math.random().toString(36).substr(2,9)}`;
+
+      const { data, error } = await supabase.from('capsules').insert([{ 
+          message, 
+          audio_url: audioUrl, 
+          photo_urls: photoUrls, 
+          unlock_at: unlockDate, 
+          order_id: tempId // ID Provisório
+      }]).select();
+
+      if (error) throw error;
+
+      // 4. GUARDA O ID DA CÁPSULA NO NAVEGADOR
+      // (Isso é crucial! É assim que vamos saber qual cápsula liberar depois que ele pagar)
+      const capsuleId = data[0].id;
+      localStorage.setItem('pending_capsule_id', capsuleId);
+
+      // 5. MANDA PRA KIRVANO
+      // Adicionando o parceiro para você receber a comissão certa
+      let finalCheckoutUrl = KIRVANO_CHECKOUT;
+      if (parceiro) {
+        const sep = finalCheckoutUrl.includes('?') ? '&' : '?';
+        finalCheckoutUrl = `${finalCheckoutUrl}${sep}src=${parceiro}&sck=${parceiro}&utm_source=${parceiro}`;
+      }
+
+      window.location.href = finalCheckoutUrl;
       
     } catch (error) {
       console.error(error);
-      alert(error.message || "Erro ao criar cápsula.");
-    } finally {
+      alert("Erro ao salvar. Tente novamente.");
       setLoading(false);
     }
   };
 
-  // Se o link já foi usado (apenas para pagantes reais)
-  if (linkUsed) {
-    return (
-      <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-zinc-900 border border-yellow-600/30 p-8 rounded-3xl text-center shadow-2xl">
-          <div className="w-16 h-16 bg-yellow-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
-             <Lock className="text-yellow-500 w-8 h-8" />
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Convite Já Utilizado</h2>
-          <p className="text-zinc-400 mb-8">Este link de compra já foi usado para criar uma cápsula.</p>
-          <button 
-            onClick={() => window.location.href = '/'} // Pode por seu link de venda aqui
-            className="w-full py-4 bg-white text-black font-bold rounded-xl hover:bg-zinc-200 transition"
-          >
-            Comprar Nova Cápsula 🚀
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Se não tiver token, nem renderiza
-  if (!tokenUrl) return null;
-
   return (
     <div className="min-h-screen bg-zinc-950 text-white pb-20 font-sans selection:bg-purple-500">
-      
-      {/* Barra colorida normal (sem piscar, sem avisos) */}
       <div className="w-full h-1 bg-zinc-900 sticky top-0 z-50">
         <div className="w-1/3 h-full bg-gradient-to-r from-purple-500 to-pink-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]"></div>
       </div>
 
       <div className="max-w-md mx-auto px-6 py-10 flex flex-col gap-8">
-        
-        {/* SEM AVISOS DE INFLUENCER/VIP AQUI. TUDO LIMPO. */}
-
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center p-3 bg-zinc-900 rounded-2xl mb-4 border border-zinc-800 shadow-xl">
             <Lock className="w-6 h-6 text-purple-400" />
@@ -191,6 +160,9 @@ export default function CreateCapsule() {
           <h1 className="text-4xl font-black tracking-tight text-white">Criar Cápsula</h1>
           <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest">Destino: 2026</p>
         </div>
+
+        {/* ... (O RESTO DO FORMULÁRIO DE FOTO/AUDIO É IDÊNTICO AO SEU ANTERIOR) ... */}
+        {/* Mantenha o seu JSX dos inputs aqui, só mudando o botão final para chamar handleFinish */}
 
         {/* CARD FOTOS */}
         <div className="bg-zinc-900/50 backdrop-blur-md p-6 rounded-3xl border border-zinc-800/50 shadow-2xl">
@@ -241,8 +213,8 @@ export default function CreateCapsule() {
         </div>
 
         {/* BOTÃO FINAL */}
-        <button onClick={handleSubmit} disabled={loading} className="w-full py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all transform active:scale-95 disabled:opacity-50 bg-white text-black hover:bg-zinc-200 shadow-[0_0_20px_rgba(255,255,255,0.1)]">
-          {loading ? <Loader2 className="animate-spin text-zinc-400" /> : <><span>Lacrar Cápsula</span><Send size={20} /></>}
+        <button onClick={handleFinish} disabled={loading} className="w-full py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all transform active:scale-95 disabled:opacity-50 bg-white text-black hover:bg-zinc-200 shadow-[0_0_20px_rgba(255,255,255,0.1)]">
+          {loading ? <Loader2 className="animate-spin text-zinc-400" /> : <><span>Pagar e Lacrar</span><Send size={20} /></>}
         </button>
 
       </div>
